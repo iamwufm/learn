@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网页版贪吃蛇</title>
+<style>
+  /* ========== 全局基础样式 ========== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    transition: background 0.4s ease;
+    color: #1e293b;
+  }
+  body.theme-purple   { background: linear-gradient(135deg, #f3e8ff 0%, #d8b4fe 100%); }
+  body.theme-green    { background: linear-gradient(135deg, #dcfce7 0%, #86efac 100%); }
+  body.theme-dark     { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #e2e8f0; }
+  body.theme-sunset   { background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%); }
+
+  .container { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+  .info-bar { display: flex; gap: 24px; font-size: 16px; font-weight: 600; }
+  .info-bar .score-box {
+    background: rgba(255,255,255,0.7);
+    padding: 8px 18px; border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  body.theme-dark .info-bar .score-box { background: rgba(30,41,59,0.7); color: #f8fafc; }
+
+  .theme-bar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .theme-btn {
+    border: none; cursor: pointer; padding: 6px 14px;
+    border-radius: 20px; font-size: 13px; font-weight: 500;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  .theme-btn:hover { transform: translateY(-2px); }
+  .theme-btn.active { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  .theme-btn.t-blue   { background: #bae6fd; color: #075985; }
+  .theme-btn.t-purple { background: #d8b4fe; color: #6b21a8; }
+  .theme-btn.t-green  { background: #86efac; color: #166534; }
+  .theme-btn.t-dark   { background: #334155; color: #f8fafc; }
+  .theme-btn.t-sunset { background: #fdba74; color: #9a3412; }
+
+  /* ========== 速度调节栏 ========== */
+  .speed-bar {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.7);
+    padding: 8px 16px; border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    font-size: 14px; font-weight: 600;
+  }
+  body.theme-dark .speed-bar { background: rgba(30,41,59,0.7); color: #f8fafc; }
+  .speed-bar label { white-space: nowrap; }
+  /* 自定义滑块 */
+  #speedSlider {
+    -webkit-appearance: none; appearance: none;
+    width: 180px; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, #93c5fd, #3b82f6);
+    outline: none; cursor: pointer;
+  }
+  #speedSlider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 2px solid #3b82f6;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor: pointer;
+  }
+  #speedSlider::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 2px solid #3b82f6; cursor: pointer;
+  }
+  .speed-level {
+    min-width: 64px; text-align: center;
+    color: #3b82f6; font-weight: 700;
+  }
+
+  .canvas-wrapper {
+    position: relative; padding: 8px;
+    background: rgba(255,255,255,0.5); border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  }
+  body.theme-dark .canvas-wrapper { background: rgba(15,23,42,0.6); }
+  canvas { display: block; background: #fff; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); }
+  body.theme-dark canvas { background: #0f172a; }
+
+  .controls { display: flex; gap: 12px; }
+  .btn { border: none; cursor: pointer; padding: 10px 24px; font-size: 15px; font-weight: 600; border-radius: 8px; transition: all 0.2s; }
+  .btn-primary { background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; box-shadow: 0 4px 12px rgba(34,197,94,0.35); }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-secondary { background: #f1f5f9; color: #475569; }
+  .btn-secondary:hover { background: #e2e8f0; }
+
+  .tip { font-size: 13px; color: #64748b; text-align: center; }
+  body.theme-dark .tip { color: #94a3b8; }
+
+  .overlay {
+    position: absolute; inset: 8px; background: rgba(0,0,0,0.65);
+    color: #fff; border-radius: 8px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+    font-size: 18px; text-align: center;
+  }
+  .overlay.hidden { display: none; }
+  .overlay .final-score { font-size: 32px; font-weight: 700; color: #fde047; }
+</style>
+</head>
+<body class="theme-blue">
+  <div class="container">
+    <h1>🐍 贪吃蛇</h1>
+
+    <!-- 分数信息栏 -->
+    <div class="info-bar">
+      <div class="score-box">当前分数：<span id="score">0</span></div>
+      <div class="score-box">最高分：<span id="highScore">0</span></div>
+    </div>
+
+    <!-- 背景切换按钮 -->
+    <div class="theme-bar">
+      <button class="theme-btn t-blue active"    data-theme="blue">浅蓝</button>
+      <button class="theme-btn t-purple"          data-theme="purple">浅紫</button>
+      <button class="theme-btn t-green"           data-theme="green">浅绿</button>
+      <button class="theme-btn t-sunset"          data-theme="sunset">日落</button>
+      <button class="theme-btn t-dark"            data-theme="dark">暗夜</button>
+    </div>
+
+    <!-- 速度调节栏：滑块控制蛇移动快慢 -->
+    <div class="speed-bar">
+      <label for="speedSlider">🐍 爬行速度</label>
+      <input type="range" id="speedSlider" min="1" max="10" value="7">
+      <span class="speed-level" id="speedLevel">Lv.7 普通</span>
+    </div>
+
+    <!-- 游戏画布 -->
+    <div class="canvas-wrapper">
+      <canvas id="gameCanvas" width="400" height="400"></canvas>
+      <div id="overlay" class="overlay hidden">
+        <div>游戏结束！</div>
+        <div class="final-score">得分：<span id="finalScore">0</span></div>
+        <div style="font-size:14px;color:#cbd5e1;">按「重新开始」再来一局</div>
+      </div>
+    </div>
+
+    <!-- 控制按钮 -->
+    <div class="controls">
+      <button class="btn btn-primary" id="startBtn">开始 / 暂停</button>
+      <button class="btn btn-secondary" id="restartBtn">重新开始</button>
+    </div>
+
+    <div class="tip">使用方向键 ↑ ↓ ← → 或 W A S D 控制蛇移动，吃到食物得分 +10；拖动「爬行速度」滑块可随时调整快慢</div>
+  </div>
+
+<script>
+/* ============================================================
+ * 贪吃蛇游戏逻辑
+ * 使用 Canvas 绘制，setInterval 驱动游戏循环
+ * ============================================================ */
+
+// 画布与上下文
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 网格配置：20x20 个格子，每格 20px
+const CELL = 20;
+const COLS = canvas.width / CELL;   // 列数 = 20
+const ROWS = canvas.height / CELL;  // 行数 = 20
+
+// 游戏状态变量
+let snake = [];                       // 蛇身坐标数组，每个元素 {x, y}
+let direction = { x: 1, y: 0 };       // 当前移动方向（默认向右）
+let nextDirection = { x: 1, y: 0 };   // 缓存下一帧方向，防止快速按键反向自杀
+let food = { x: 0, y: 0 };            // 食物坐标
+let score = 0;                        // 当前分数
+let highScore = 0;                    // 历史最高分（localStorage 持久化）
+let gameRunning = false;              // 游戏是否运行中
+let gameTimer = null;                 // 循环计时器
+let speedLevel = 7;                   // 速度等级 1-10，越大越快
+let speed = 120;                      // 蛇移动间隔（ms），由 speedLevel 计算得出，越小越快
+
+// DOM 引用
+const scoreEl = document.getElementById('score');
+const highScoreEl = document.getElementById('highScore');
+const overlayEl = document.getElementById('overlay');
+const finalScoreEl = document.getElementById('finalScore');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const speedSlider = document.getElementById('speedSlider');
+const speedLevelEl = document.getElementById('speedLevel');
+
+/* ---------- 速度等级 -> 文案映射 ---------- */
+function getSpeedLabel(level) {
+  if (level <= 3) return '慢速';
+  if (level <= 6) return '普通';
+  if (level <= 8) return '较快';
+  return '极速';
+}
+
+/* ---------- 根据等级计算实际间隔（ms）----------
+ * 等级 1 = 240ms（最慢），等级 10 = 50ms（最快）
+ * 公式：speed = 260 - level * 20，并限制最小 40ms
+ */
+function calcSpeed(level) {
+  return Math.max(40, 260 - level * 20);
+}
+
+/* ---------- 应用新速度：更新变量、显示、运行中则重启定时器 ---------- */
+function applySpeed() {
+  speed = calcSpeed(speedLevel);
+  speedLevelEl.textContent = 'Lv.' + speedLevel + ' ' + getSpeedLabel(speedLevel);
+  // 若游戏正在运行，需要重启定时器以使新速度立即生效
+  if (gameRunning) {
+    clearInterval(gameTimer);
+    gameTimer = setInterval(gameLoop, speed);
+  }
+}
+
+/* ---------- 初始化 / 重置游戏 ---------- */
+function initGame() {
+  // 蛇初始 3 节，位于画布中央偏左，水平向右
+  snake = [
+    { x: 8, y: 10 },
+    { x: 7, y: 10 },
+    { x: 6, y: 10 }
+  ];
+  direction = { x: 1, y: 0 };
+  nextDirection = { x: 1, y: 0 };
+  score = 0;
+  updateScore();
+  spawnFood();
+  drawGame();
+}
+
+/* ---------- 随机生成食物（避开蛇身） ---------- */
+function spawnFood() {
+  let valid = false;
+  while (!valid) {
+    food.x = Math.floor(Math.random() * COLS);
+    food.y = Math.floor(Math.random() * ROWS);
+    valid = !snake.some(seg => seg.x === food.x && seg.y === food.y);
+  }
+}
+
+/* ---------- 更新分数显示，并同步最高分 ---------- */
+function updateScore() {
+  scoreEl.textContent = score;
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('snake_high_score', highScore);
+  }
+  highScoreEl.textContent = highScore;
+}
+
+/* ---------- 游戏主循环：每帧移动一格 ---------- */
+function gameLoop() {
+  // 应用缓存方向
+  direction = nextDirection;
+
+  // 计算新蛇头位置
+  const head = {
+    x: snake[0].x + direction.x,
+    y: snake[0].y + direction.y
+  };
+
+  // 碰撞检测：撞墙
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    return gameOver();
+  }
+  // 碰撞检测：撞自己
+  if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+    return gameOver();
+  }
+
+  // 将新头部插入蛇头
+  snake.unshift(head);
+
+  // 吃到食物：分数 +10，重新生成食物，不删尾（蛇身增长）
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    updateScore();
+    spawnFood();
+  } else {
+    snake.pop(); // 未吃到：删尾部保持长度
+  }
+
+  drawGame();
+}
+
+/* ---------- 绘制游戏画面 ---------- */
+function drawGame() {
+  // 清空画布
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 绘制网格辅助线
+  ctx.strokeStyle = 'rgba(100,116,139,0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= COLS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * CELL, 0);
+    ctx.lineTo(i * CELL, canvas.height);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i * CELL);
+    ctx.lineTo(canvas.width, i * CELL);
+    ctx.stroke();
+  }
+
+  // 绘制食物（红色圆点）
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.arc(
+    food.x * CELL + CELL / 2,
+    food.y * CELL + CELL / 2,
+    CELL / 2 - 2,
+    0, Math.PI * 2
+  );
+  ctx.fill();
+
+  // 绘制蛇身（头部深绿，身体浅绿）
+  snake.forEach((seg, idx) => {
+    ctx.fillStyle = (idx === 0) ? '#15803d' : '#22c55e';
+    const pad = 1;
+    ctx.fillRect(seg.x * CELL + pad, seg.y * CELL + pad, CELL - pad * 2, CELL - pad * 2);
+  });
+}
+
+/* ---------- 开始 / 暂停游戏 ---------- */
+function toggleGame() {
+  if (gameRunning) {
+    clearInterval(gameTimer);
+    gameTimer = null;
+    gameRunning = false;
+    startBtn.textContent = '继续';
+  } else {
+    gameRunning = true;
+    startBtn.textContent = '暂停';
+    overlayEl.classList.add('hidden');
+    gameTimer = setInterval(gameLoop, speed);
+  }
+}
+
+/* ---------- 游戏结束 ---------- */
+function gameOver() {
+  clearInterval(gameTimer);
+  gameTimer = null;
+  gameRunning = false;
+  finalScoreEl.textContent = score;
+  overlayEl.classList.remove('hidden');
+  startBtn.textContent = '开始 / 暂停';
+}
+
+/* ---------- 重新开始 ---------- */
+function restart() {
+  clearInterval(gameTimer);
+  gameTimer = null;
+  gameRunning = false;
+  overlayEl.classList.add('hidden');
+  startBtn.textContent = '开始 / 暂停';
+  initGame();
+  toggleGame();
+}
+
+/* ---------- 键盘控制 ---------- */
+document.addEventListener('keydown', (e) => {
+  const key = e.key.toLowerCase();
+  let newDir = null;
+  if (key === 'arrowup' || key === 'w')         newDir = { x: 0, y: -1 };
+  else if (key === 'arrowdown' || key === 's')  newDir = { x: 0, y: 1 };
+  else if (key === 'arrowleft' || key === 'a')  newDir = { x: -1, y: 0 };
+  else if (key === 'arrowright' || key === 'd') newDir = { x: 1, y: 0 };
+  else if (key === ' ') { e.preventDefault(); toggleGame(); return; }
+
+  if (newDir) {
+    e.preventDefault();
+    // 禁止 180 度反向
+    if (snake.length > 1 && newDir.x === -direction.x && newDir.y === -direction.y) return;
+    nextDirection = newDir;
+  }
+});
+
+/* ---------- 背景主题切换 ---------- */
+document.querySelectorAll('.theme-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const theme = btn.dataset.theme;
+    document.body.className = '';
+    document.body.classList.add('theme-' + theme);
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    localStorage.setItem('snake_theme', theme);
+  });
+});
+
+/* ---------- 按钮事件绑定 ---------- */
+startBtn.addEventListener('click', toggleGame);
+restartBtn.addEventListener('click', restart);
+
+/* ---------- 速度滑块事件：拖动即生效，并持久化 ---------- */
+speedSlider.addEventListener('input', (e) => {
+  speedLevel = parseInt(e.target.value, 10);
+  applySpeed();
+  localStorage.setItem('snake_speed_level', speedLevel);
+});
+
+/* ---------- 启动时恢复历史数据 ---------- */
+(function bootstrap() {
+  // 恢复最高分
+  const savedHigh = localStorage.getItem('snake_high_score');
+  if (savedHigh) highScore = parseInt(savedHigh, 10) || 0;
+  highScoreEl.textContent = highScore;
+
+  // 恢复背景主题
+  const savedTheme = localStorage.getItem('snake_theme') || 'blue';
+  document.body.className = 'theme-' + savedTheme;
+  document.querySelectorAll('.theme-btn').forEach(b => {
+    if (b.dataset.theme === savedTheme) b.classList.add('active');
+  });
+
+  // 恢复速度等级，并同步滑块位置与显示
+  const savedSpeed = localStorage.getItem('snake_speed_level');
+  if (savedSpeed) speedLevel = parseInt(savedSpeed, 10) || 7;
+  speedSlider.value = speedLevel;
+  applySpeed();
+
+  // 初始化游戏画面（等待玩家点击开始）
+  initGame();
+})();
+</script>
+</body>
+</html>
